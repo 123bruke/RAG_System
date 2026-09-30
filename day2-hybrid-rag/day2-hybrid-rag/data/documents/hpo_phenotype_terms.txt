@@ -1,0 +1,18 @@
+Human Phenotype Ontology (HPO) - sample glossary for the demo
+This is a tiny subset of HPO terms used to demonstrate keyword search on exact identifiers.
+
+HP:0001945 Fever - Elevated body temperature due to failed thermoregulation.
+
+HP:0002315 Headache - Cephalgia, or pain sensed in various parts of the head.
+
+HP:0012378 Fatigue - A subjective feeling of tiredness characterized by a lack of energy and motivation.
+
+HP:0002094 Dyspnea - Difficult or labored breathing, often described as shortness of breath.
+
+HP:0012735 Cough - A sudden, audible expulsion of air from the lungs, clearing the airway.
+
+HP:0002018 Nausea - A sensation of unease in the stomach together with an urge to vomit.
+
+HP:0002014 Diarrhea - Abnormally increased frequency of loose or watery bowel movements.
+
+HP:0002013 Vomiting - Forceful ejection of the contents of the stomach through the mouth.

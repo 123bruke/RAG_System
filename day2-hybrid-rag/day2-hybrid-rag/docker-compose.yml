@@ -1,0 +1,50 @@
+# Two services built from the same image:
+#   api -> FastAPI  on http://localhost:8000  (docs at /docs)
+#   ui  -> Streamlit on http://localhost:8501
+#
+# Secrets: Compose reads a .env file next to this file for the ${...} values below.
+#   cp .env.example .env   (then set GOOGLE_API_KEY or OPENAI_API_KEY)
+#
+# NOTE: each service has its OWN ChromaDB volume on purpose. ChromaDB's local
+# persistent mode is not safe for several processes writing the same folder.
+# Documents ingested through the API are therefore not visible in the UI (and
+# vice versa). For a shared index, run Chroma as a server - see README "Future improvements".
+
+x-rag-environment: &rag-environment
+  LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+  GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  LLM_MODEL: ${LLM_MODEL:-}
+  CHROMA_PATH: /app/chroma_db
+
+services:
+  api:
+    build: .
+    image: hybrid-rag
+    ports:
+      - "8000:8000"
+    environment: *rag-environment
+    volumes:
+      - api_chroma:/app/chroma_db
+      - documents:/app/data/documents
+
+  ui:
+    build: .
+    image: hybrid-rag
+    command: ["streamlit", "run", "streamlit_app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+    ports:
+      - "8501:8501"
+    environment: *rag-environment
+    volumes:
+      - ui_chroma:/app/chroma_db
+      - documents:/app/data/documents
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+
+volumes:
+  api_chroma:
+  ui_chroma:
+  documents:
