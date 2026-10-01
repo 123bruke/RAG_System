@@ -14,6 +14,273 @@ paraphrases ("money back" vs "refund").
 *only* from the retrieved text, cite it, and say *"I don't know based on the provided documents."* when the
 answer isn't there.
 
+## System Architecture & Workflow
+
+### 📊 End-to-End System Flow
+
+```
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                    HYBRID RAG SYSTEM ARCHITECTURE                        ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+                         ╔════════════════════════════════════╗
+                         ║   📄 USER DOCUMENTS                ║
+                         ║  (PDF / TXT / DOCX)                ║
+                         ╚════════════════════════════════════╝
+                                      │
+                                      ▼
+                    ┌─────────────────────────────────┐
+                    │   INGESTION PIPELINE (Once)     │
+                    └─────────────────────────────────┘
+                    │
+        ┌───────────┴───────────┬────────────────┐
+        ▼                       ▼                ▼
+    ┏━━━━━━━━┓            ┏━━━━━━━━┓       ┏━━━━━━━━┓
+    ┃ Loader ┃            ┃ Chunker┃       ┃Embedder┃
+    ┃        ┃──────────▶ ┃        ┃──────▶┃        ┃
+    ┗━━━━━━━━┛            ┗━━━━━━━━┘       ┗━━━━━━━━┛
+        Text                Chunks           Vectors
+                                               │
+                        ┌──────────────────────┼──────────────────────┐
+                        ▼                      ▼                      ▼
+                    ┏━━━━━━━━━┓           ┏━━━━━━━━━┓            ┏━━━━━━━┓
+                    ┃ChromaDB ┃           ┃BM25 Index          ┃ Config┃
+                    ┃(Vector) ┃           ┃(Keyword)           ┃ Cache ┃
+                    ┗━━━━━━━━━┛           ┗━━━━━━━━━┘           ┗━━━━━━━┛
+                         📦                   📦                    ⚙️
+
+
+                    ╔════════════════════════════════════╗
+                    ║   ❓ USER QUESTION                 ║
+                    ╚════════════════════════════════════╝
+                                      │
+                                      ▼
+                    ┌─────────────────────────────────┐
+                    │   RETRIEVAL PIPELINE (Per Query)│
+                    └─────────────────────────────────┘
+                                      │
+                    ┌─────────────────┴─────────────────┐
+                    ▼                                   ▼
+            ┏━━━━━━━━━━━━━━━┓                  ┏━━━━━━━━━━━━━━━┓
+            ┃Vector Search  ┃                  ┃ BM25 Search   ┃
+            ┃ (Semantic)    ┃                  ┃ (Keyword)     ┃
+            ┃ Top 10        ┃                  ┃ Top 10        ┃
+            ┗━━━━━━━━━━━━━━━┛                  ┗━━━━━━━━━━━━━━━┛
+                    │                                   │
+                    └─────────────────┬─────────────────┘
+                                      ▼
+                            ┏━━━━━━━━━━━━━━━┓
+                            ┃  RRF Fusion   ┃
+                            ┃  Merge Ranks  ┃
+                            ┃  Top 10 → 5   ┃
+                            ┗━━━━━━━━━━━━━━━┛
+                                      │
+                                      ▼
+                            ┏━━━━━━━━━━━━━━━┓
+                            ┃ Cross-Encoder ┃
+                            ┃  Reranker     ┃
+                            ┃ Scoring: 0-10 ┃
+                            ┗━━━━━━━━━━━━━━━┛
+                                      │
+                                      ▼
+                    ╔════════════════════════════════════╗
+                    ║  Top 5 Relevant Chunks Ready      ║
+                    ╚════════════════════════════════════╝
+                                      │
+                                      ▼
+                            ┏━━━━━━━━━━━━━━━┓
+                            ┃  LLM (Gemini  ┃
+                            ┃  or OpenAI)   ┃
+                            ┃  Generate     ┃
+                            ┃  Answer       ┃
+                            ┗━━━━━━━━━━━━━━━┛
+                                      │
+                                      ▼
+                    ╔════════════════════════════════════╗
+                    ║   🎯 GROUNDED ANSWER + CITATIONS  ║
+                    ║   📌 Source References Included    ║
+                    ╚════════════════════════════════════╝
+```
+
+### 🔄 Detailed Processing Steps
+
+#### **INGESTION PHASE** (Once per file)
+```
+File Upload
+    │
+    ├─▶ Load & Extract
+    │   └─ PDF/TXT/DOCX → Plain text
+    │
+    ├─▶ Chunk & Segment
+    │   ├─ 500 char chunks
+    │   ├─ 100 char overlap
+    │   └─ Preserve page metadata
+    │
+    ├─▶ Generate Embeddings
+    │   ├─ Model: all-MiniLM-L6-v2
+    │   ├─ Normalize vectors
+    │   └─ 384-dim embeddings
+    │
+    └─▶ Store & Index
+        ├─ ChromaDB (persistent)
+        └─ BM25 in-memory index
+```
+
+#### **RETRIEVAL PHASE** (Per question)
+```
+Question Input
+    │
+    ├─▶ Parallel Search 1: Vector Similarity
+    │   ├─ Cosine distance
+    │   ├─ Top 10 results
+    │   └─ Semantic matching
+    │
+    ├─▶ Parallel Search 2: BM25 Keyword
+    │   ├─ Term frequency
+    │   ├─ Top 10 results
+    │   └─ Exact match scoring
+    │
+    ├─▶ Reciprocal Rank Fusion (RRF)
+    │   ├─ Merge rankings
+    │   ├─ Formula: 1/(k+rank)
+    │   └─ Top 10 → Top 5
+    │
+    ├─▶ Cross-Encoder Reranking
+    │   ├─ Model: ms-marco-MiniLM-L-6-v2
+    │   ├─ Score each chunk
+    │   └─ Re-sort by relevance
+    │
+    └─▶ LLM Answer Generation
+        ├─ Input: Question + Top 5 chunks
+        ├─ Force grounding in text
+        ├─ Generate citations [1][2]
+        └─ Output: Answer + Sources
+```
+
+## 🏗️ Technology Stack & Framework
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     TECHNOLOGY STACK                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  🐍 LANGUAGE & RUNTIME                                          │
+│  └─ Python 3.11+                                               │
+│                                                                 │
+│  🔗 VECTOR & EMBEDDING                                          │
+│  ├─ ChromaDB (Vector Database)                                 │
+│  ├─ sentence-transformers                                      │
+│  │  ├─ all-MiniLM-L6-v2 (384-dim embeddings)                   │
+│  │  └─ ms-marco-MiniLM-L-6-v2 (reranker)                       │
+│  └─ NumPy (vector operations)                                  │
+│                                                                 │
+│  📚 RETRIEVAL & SEARCH                                          │
+│  ├─ rank-bm25 (Keyword search)                                 │
+│  ├─ ChromaDB API (Vector similarity)                           │
+│  └─ Custom RRF Fusion (Ranking merge)                          │
+│                                                                 │
+│  🤖 LLM INTEGRATIONS                                            │
+│  ├─ Google Gemini (gemini-2.5-flash)                           │
+│  ├─ OpenAI (gpt-4o-mini)                                       │
+│  └─ Provider-agnostic interface                                │
+│                                                                 │
+│  🎨 INTERFACES                                                  │
+│  ├─ FastAPI (REST API)                                         │
+│  ├─ Streamlit (Web UI)                                         │
+│  └─ OpenAPI/Swagger docs (/docs)                               │
+│                                                                 │
+│  📋 CONFIGURATION                                               │
+│  ├─ Pydantic Settings (Type-safe config)                       │
+│  └─ .env file management                                       │
+│                                                                 │
+│  📦 DOCUMENT PROCESSING                                         │
+│  ├─ pypdf (PDF extraction)                                     │
+│  ├─ python-docx (DOCX parsing)                                 │
+│  └─ Text chunking (Overlapping windows)                        │
+│                                                                 │
+│  ✅ TESTING & QUALITY                                           │
+│  ├─ pytest (85 unit tests)                                     │
+│  ├─ Deterministic test mocks                                   │
+│  └─ No API keys needed for tests                               │
+│                                                                 │
+│  🐳 DEPLOYMENT                                                  │
+│  ├─ Docker (Containerization)                                  │
+│  ├─ docker-compose (Multi-service)                             │
+│  └─ Volume management for persistence                          │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Output Example
+
+### 📤 Query Flow Visualization
+
+```
+Input Query: "What is the refund period?"
+
+    STEP 1: VECTOR SEARCH              STEP 2: BM25 SEARCH
+    ┌──────────────────┐              ┌──────────────────┐
+    │ Embed question   │              │ Tokenize query   │
+    │ Find similar     │              │ Match keywords   │
+    │ vectors          │              │ Calculate IDF    │
+    └────────┬─────────┘              └────────┬─────────┘
+             │                                 │
+    Result:  │ "Refund",                   │ "refund_policy.txt",
+    [Score]  │ "Return",                   │ "customer_policy.docx",
+             │ "Money back"                │ "policy_updated.txt"
+             │                                 │
+             └───────────────┬─────────────────┘
+                             │
+                    STEP 3: RRF FUSION
+                    ┌──────────────────┐
+                    │ Reciprocal Ranks │
+                    │ Merge results    │
+                    │ Remove duplicates│
+                    └────────┬─────────┘
+                             │
+                    Top 10 merged results
+                             │
+                    STEP 4: CROSS-ENCODER RERANKING
+                    ┌──────────────────────────┐
+                    │ Score each chunk pair:   │
+                    │ (question, chunk_text)   │
+                    │ Logit scores: -10 to +10 │
+                    └────────┬─────────────────┘
+                             │
+                    ┌────────▼─────────────────────────────┐
+                    │ Top 5 Ranked Chunks:                 │
+                    │ [1] refund_policy.txt (score: 8.41)  │
+                    │ [2] customer_policy.docx (score: 7.9)│
+                    │ [3] policy_updated.txt (score: 6.2)  │
+                    │ [4] faq.txt (score: 5.1)             │
+                    │ [5] terms.docx (score: 4.8)          │
+                    └────────┬─────────────────────────────┘
+                             │
+                    STEP 5: LLM GENERATION
+                    ┌──────────────────────────────────┐
+                    │ Context Window:                  │
+                    │ Question +                       │
+                    │ Top 5 chunks +                   │
+                    │ Grounding prompt                 │
+                    └────────┬─────────────────────────┘
+                             │
+    ╔════════════════════════▼══════════════════════════════╗
+    ║                     OUTPUT                            ║
+    ╠════════════════════════════════════════════════════════╣
+    ║                                                        ║
+    ║ ✅ ANSWER:                                            ║
+    ║ "Customers can request a full refund within 30 days  ║
+    ║  of purchase. [1]"                                    ║
+    ║                                                        ║
+    ║ 📌 SOURCES:                                           ║
+    ║ [1] refund_policy.txt (page: 1, chunk: 0)            ║
+    ║     Score: 8.41 (rerank) | RRF: 0.0325              ║
+    ║     Text: "ACME Store - Refund Policy...             ║
+    ║           Customers can request a full refund..."   ║
+    ║                                                        ║
+    ╚════════════════════════════════════════════════════════╝
+```
+
 ## Architecture
 
 ```
@@ -25,7 +292,7 @@ answer isn't there.
                          QUERY (every question)
  Question ─┬─► Vector search (Chroma, top 10) ─┐
            └─► BM25 keyword search  (top 10) ──┴─► RRF fusion ─► Cross-encoder ─► Top 5 ─► LLM ─► Answer
-                                                   1/(k+rank)     reranker                        + Sources
+                                                    1/(k+rank)     reranker                        + Sources
 ```
 
 | Stage | Module | Job |
@@ -215,7 +482,7 @@ component adds instead of assuming it. Add your own questions to the JSON file.
   threshold, so out-of-scope questions rely on the LLM's "I don't know" instruction.
 - **No authentication, rate limiting or upload size limit** on the API — do not expose it publicly as is.
 - **Evaluation is a proxy** (string containment). Real systems add human-labelled chunks and LLM-as-judge scoring.
-- English-centric models (`all-MiniLM-L6-v2` is trained mostly on English).
+- **English-centric models** (`all-MiniLM-L6-v2` is trained mostly on English).
 
 ## Future improvements
 
