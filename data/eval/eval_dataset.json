@@ -1,0 +1,37 @@
+[
+  {
+    "question": "What is the refund period?",
+    "expected_answer": "30 days",
+    "expected_sources": ["refund_policy.txt"]
+  },
+  {
+    "question": "How long does it take to process a refund after the item is received?",
+    "expected_answer": "5 to 7 business days",
+    "expected_sources": ["refund_policy.txt"]
+  },
+  {
+    "question": "Can I get a refund on a gift card?",
+    "expected_answer": "non-refundable",
+    "expected_sources": ["refund_policy.txt"]
+  },
+  {
+    "question": "What are the customer support hours?",
+    "expected_answer": "9:00 to 18:00",
+    "expected_sources": ["customer_support_policy.txt"]
+  },
+  {
+    "question": "How long is the hardware warranty?",
+    "expected_answer": "12 months",
+    "expected_sources": ["customer_support_policy.txt"]
+  },
+  {
+    "question": "HP:0001945",
+    "expected_answer": "HP:0001945 Fever",
+    "expected_sources": ["hpo_phenotype_terms.txt"]
+  },
+  {
+    "question": "Which phenotype term is HP:0002094?",
+    "expected_answer": "HP:0002094 Dyspnea",
+    "expected_sources": ["hpo_phenotype_terms.txt"]
+  }
+]

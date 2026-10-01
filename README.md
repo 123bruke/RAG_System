@@ -14,6 +14,7 @@ paraphrases ("money back" vs "refund").
 *only* from the retrieved text, cite it, and say *"I don't know based on the provided documents."* when the
 answer isn't there.
 
+<<<<<<< HEAD
 ## System Architecture & Workflow
 
 ### 📊 End-to-End System Flow
@@ -281,6 +282,8 @@ Input Query: "What is the refund period?"
     ╚════════════════════════════════════════════════════════╝
 ```
 
+=======
+>>>>>>> c367202 (Initial commit – add Hybrid‑RAG project files)
 ## Architecture
 
 ```
@@ -292,7 +295,11 @@ Input Query: "What is the refund period?"
                          QUERY (every question)
  Question ─┬─► Vector search (Chroma, top 10) ─┐
            └─► BM25 keyword search  (top 10) ──┴─► RRF fusion ─► Cross-encoder ─► Top 5 ─► LLM ─► Answer
+<<<<<<< HEAD
                                                     1/(k+rank)     reranker                        + Sources
+=======
+                                                   1/(k+rank)     reranker                        + Sources
+>>>>>>> c367202 (Initial commit – add Hybrid‑RAG project files)
 ```
 
 | Stage | Module | Job |
@@ -482,7 +489,11 @@ component adds instead of assuming it. Add your own questions to the JSON file.
   threshold, so out-of-scope questions rely on the LLM's "I don't know" instruction.
 - **No authentication, rate limiting or upload size limit** on the API — do not expose it publicly as is.
 - **Evaluation is a proxy** (string containment). Real systems add human-labelled chunks and LLM-as-judge scoring.
+<<<<<<< HEAD
 - **English-centric models** (`all-MiniLM-L6-v2` is trained mostly on English).
+=======
+- English-centric models (`all-MiniLM-L6-v2` is trained mostly on English).
+>>>>>>> c367202 (Initial commit – add Hybrid‑RAG project files)
 
 ## Future improvements
 
