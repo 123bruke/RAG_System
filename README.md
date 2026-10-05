@@ -495,9 +495,4 @@ component adds instead of assuming it. Add your own questions to the JSON file.
 - English-centric models (`all-MiniLM-L6-v2` is trained mostly on English).
 >>>>>>> c367202 (Initial commit – add Hybrid‑RAG project files)
 
-## Future improvements
 
-Qdrant (or Chroma in server mode) for a shared, scalable index · PostgreSQL + pgvector · structure/semantic-aware chunking ·
-multilingual embeddings · query rewriting / multi-query · contextual compression of retrieved chunks · streaming answers ·
-observability (OpenTelemetry, Langfuse, per-stage latency) · authentication & rate limiting · async ingestion queue ·
-CI/CD and cloud deployment · OCR for scanned PDFs · relevance thresholds & abstention.
